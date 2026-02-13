@@ -29,7 +29,7 @@ def log(msg):
 # Helpers
 # ---------------------------
 
-def read_config(path="../CONFIGURATION.txt"):
+def read_config(path="/CONFIGURATION.txt"):
     with open(path, "r") as f:
         return ujson.loads(f.read())
 
@@ -62,6 +62,11 @@ def pad_right(s, width):
     if len(s) > width:
         return s[:width]
     return s + (" " * (width - len(s)))
+
+def get_time_string():
+    """Return current time as HH:MM:SS string"""
+    t = utime.localtime()
+    return "{:02d}:{:02d}:{:02d}".format(t[3], t[4], t[5])
 
 def lcd_write_lines(lcd, cols, line0, line1):
     l0 = pad_right(line0, cols)
@@ -284,6 +289,14 @@ def show_weather_cycle(lcd, cols, geo, weather):
 
     try:
         lcd.clear()
+        time_str = get_time_string()
+        lcd_write_lines(lcd, cols, "Time", time_str)
+    except Exception as e:
+        log("LCD weather time screen failed: {}".format(e))
+    utime.sleep(2)
+
+    try:
+        lcd.clear()
         lcd_write_lines(lcd, cols, clamp_str(loc, cols), "Temp: {}C".format(round(temp, 1)))
     except Exception as e:
         log("LCD weather screen1 failed: {}".format(e))
@@ -321,7 +334,14 @@ def main():
 
     log("BOOT")
 
-    cfg = read_config()
+    try:
+        log("Reading config...")
+        cfg = read_config()
+        log("Config read OK")
+    except Exception as e:
+        log("Config read error: {}".format(e))
+        raise
+    
     ssid = safe_get(cfg, ["wifi", "ssid"], "")
     password = safe_get(cfg, ["wifi", "password"], "")
     api_key = safe_get(cfg, ["openweathermap", "api_key"], "")
@@ -335,7 +355,16 @@ def main():
 
     log("Config: i2c_id={} sda={} scl={} cols={} rows={}".format(i2c_id, sda_pin, scl_pin, cols, rows))
 
-    i2c = I2C(i2c_id, sda=Pin(sda_pin), scl=Pin(scl_pin), freq=100000)
+    try:
+        log("Creating pins: sda={} scl={}".format(sda_pin, scl_pin))
+        sda = Pin(sda_pin)
+        scl = Pin(scl_pin)
+        log("Pins created OK, initializing I2C...")
+        i2c = I2C(i2c_id, sda=sda, scl=scl, freq=50000)
+        log("I2C initialized OK")
+    except Exception as e:
+        log("I2C init error: {} {}".format(type(e).__name__, e))
+        raise
 
     # I2C scan debug
     devices = []
